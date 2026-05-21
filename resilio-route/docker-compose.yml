@@ -1,0 +1,87 @@
+# ── Resilio-Route local development stack ────────────────────────────────
+# Starts: TimescaleDB, the Risk Intelligence API, and the Ingest API.
+#
+# Usage:
+#   docker compose up -d         # start all services
+#   docker compose logs -f api   # tail API logs
+#   docker compose down          # stop everything
+#   docker compose down -v       # stop + delete DB volume
+
+services:
+
+  # ── TimescaleDB ──────────────────────────────────────────────────────────
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: rr-db
+    environment:
+      POSTGRES_DB:       resilio_route
+      POSTGRES_USER:     resilio
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resilio -d resilio_route"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Risk Intelligence API ─────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rr-api
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL:   postgresql://resilio:password@db:5432/resilio_route
+      CLOUD_API_KEY:  rr_dev_key
+      MODEL_VERSION:  "0.1.0"
+      APP_ENV:        development
+    volumes:
+      - ./ml/models:/app/ml/models    # share trained models
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Ingest API ────────────────────────────────────────────────────────────
+  ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rr-ingest
+    command: uvicorn backend.ingest.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL:   postgresql://resilio:password@db:5432/resilio_route
+      CLOUD_API_KEY:  rr_dev_key
+      APP_ENV:        development
+    depends_on:
+      db:
+        condition: service_healthy
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rr-migrate
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL:   postgresql://resilio:password@db:5432/resilio_route
+      CLOUD_API_KEY:  rr_dev_key
+      APP_ENV:        development
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

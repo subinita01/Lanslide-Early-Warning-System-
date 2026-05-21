@@ -1,0 +1,19 @@
+{
+  "red_recall": 0.0,
+  "red_miss_rate": 0.0,
+  "n_train": 233104,
+  "n_test": 43185,
+  "model_version": "0.1.0",
+  "feature_importance": {
+    "pore_spike": 0.1258,
+    "tilt_variance_1hr": 0.1095,
+    "pore_pressure": 0.0874,
+    "rainfall_1hr": 0.068,
+    "tilt_rate": 0.068,
+    "tilt_deg": 0.0652,
+    "rain_tilt_product": 0.0599,
+    "tilt_rolling_mean_3hr": 0.053,
+    "rainfall_24hr": 0.0436,
+    "rainfall_6hr": 0.0419
+  }
+}
