@@ -104,24 +104,36 @@ def build_sequences(
         from ml.data_schema import SEQUENCE_CHANNELS
         channels = SEQUENCE_CHANNELS
 
-    X_list, y_list = [], []
+    X_parts, y_parts = [], []
 
     for node_id, node_df in df.groupby("node_id"):
         node_df = node_df.reset_index(drop=True)
         n = len(node_df)
+        n_windows = n - horizon - window
+        if n_windows <= 0:
+            continue
 
-        for i in range(window, n - horizon):
-            # Sensor window: shape (n_channels, window)
-            x_window = node_df[channels].iloc[i - window : i].values.T
-            # Worst label in next 30 min
-            future = node_df[LABEL_INT_COL].iloc[i : i + horizon].values
-            y_label = int(future.max())
+        # Sliding windows built with numpy strides instead of a per-row
+        # pandas .iloc loop — the loop version peaks at multiple GB of RAM
+        # for even a single node's worth of readings (pandas caches each
+        # sliced sub-frame), which reliably OOM-kills CNN training.
+        values = node_df[channels].to_numpy(dtype=np.float32)          # (n, n_channels)
+        labels = node_df[LABEL_INT_COL].to_numpy(dtype=np.int64)       # (n,)
 
-            X_list.append(x_window)
-            y_list.append(y_label)
+        windows = np.lib.stride_tricks.sliding_window_view(
+            values, window, axis=0
+        )                                                              # (n-window+1, n_channels, window)
+        x_windows = windows[:n_windows]
 
-    X = np.array(X_list, dtype=np.float32)
-    y = np.array(y_list, dtype=np.int64)
+        # Worst label in next `horizon` steps for each window
+        label_windows = np.lib.stride_tricks.sliding_window_view(labels, horizon)  # (n-horizon+1, horizon)
+        y_future = label_windows[window : window + n_windows].max(axis=1)
+
+        X_parts.append(x_windows)
+        y_parts.append(y_future)
+
+    X = np.concatenate(X_parts, axis=0).astype(np.float32)
+    y = np.concatenate(y_parts, axis=0).astype(np.int64)
     logger.info(f"Sequences built: X={X.shape}, y={y.shape}")
     return X, y
 

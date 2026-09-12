@@ -147,7 +147,7 @@ def train(
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     criterion = nn.CrossEntropyLoss(weight=weights)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=5, factor=0.5, verbose=True
+        optimizer, patience=5, factor=0.5
     )
 
     best_val_loss = float("inf")

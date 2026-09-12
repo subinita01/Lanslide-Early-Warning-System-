@@ -1,0 +1,6 @@
+{
+  "red_recall": 0.925,
+  "best_val_loss": 0.1003,
+  "epochs_trained": 30,
+  "model_version": "0.1.0"
+}
